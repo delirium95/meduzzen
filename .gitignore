@@ -1,0 +1,70 @@
+# --- Python / FastAPI ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+.eggs/
+dist/
+build/
+pip-wheel-metadata/
+.cache/
+.pytest_cache/
+.mypy_cache/
+.pytype/
+.ruff_cache/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Logs
+*.log
+logs/
+
+# Local uploads
+uploads/
+
+# Environment files (secrets)
+.env
+.env.*
+config.env
+
+# Editors / IDE
+.vscode/
+.idea/
+*.code-workspace
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# --- Node / Frontend ---
+node_modules/
+frontend/node_modules/
+frontend/.next/
+frontend/.nuxt/
+frontend/.cache/
+frontend/.turbo/
+frontend/.parcel-cache/
+frontend/.vite/
+frontend/dist/
+frontend/build/
+frontend/coverage/
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+
+# Editor swap files
+*.swp
+*.swo
+
+
