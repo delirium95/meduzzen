@@ -7,7 +7,6 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import User, BlacklistedToken
 
-# Конфігурація JWT
 SECRET_KEY = "your-secret-key-here-change-in-production"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
@@ -28,7 +27,6 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 def verify_token(token: str, db: Session) -> Optional[dict]:
     """Перевірка JWT токена"""
     try:
-        # Перевіряємо, чи не в чорному списку
         if is_token_blacklisted(token, db):
             return None
             
@@ -50,7 +48,6 @@ def is_token_blacklisted(token: str, db: Session) -> bool:
 def add_token_to_blacklist(token: str, db: Session):
     """Додавання токена в чорний список"""
     try:
-        # Декодуємо токен, щоб отримати час закінчення
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         exp_timestamp = payload.get("exp")
         if exp_timestamp:
@@ -58,7 +55,6 @@ def add_token_to_blacklist(token: str, db: Session):
         else:
             expires_at = datetime.utcnow() + timedelta(hours=1)
     except:
-        # Якщо не можемо декодувати, встановлюємо час закінчення через годину
         expires_at = datetime.utcnow() + timedelta(hours=1)
     
     blacklisted_token = BlacklistedToken(

@@ -7,22 +7,18 @@ import shutil
 from datetime import datetime
 import logging
 
-# Налаштовуємо логування
 logger = logging.getLogger(__name__)
 
-# Налаштування для файлів
 UPLOAD_DIR = "uploads"
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 ALLOWED_EXTENSIONS = {".txt", ".pdf", ".doc", ".docx", ".jpg", ".jpeg", ".png", ".gif"}
 
-# Створюємо папку для завантажень
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 def create_private_chat(db: Session, creator_id: int, recipient_id: int) -> Chat:
     """Створення приватного чату між двома користувачами"""
     logger.info(f"🔍 Creating private chat: creator_id={creator_id}, recipient_id={recipient_id}")
     
-    # Перевіряємо, чи існує користувач
     recipient = db.query(User).filter(User.id == recipient_id).first()
     if not recipient:
         logger.error(f"❌ Recipient user {recipient_id} not found")
@@ -31,7 +27,6 @@ def create_private_chat(db: Session, creator_id: int, recipient_id: int) -> Chat
             detail="Recipient user not found"
         )
     
-    # Перевіряємо, чи не створюємо чат з самим собою
     if creator_id == recipient_id:
         logger.error(f"❌ Cannot create chat with yourself")
         raise HTTPException(
@@ -39,7 +34,6 @@ def create_private_chat(db: Session, creator_id: int, recipient_id: int) -> Chat
             detail="Cannot create chat with yourself"
         )
     
-    # Перевіряємо, чи вже існує чат між цими користувачами
     existing_chat = db.query(Chat).filter(
         ((Chat.creator_id == creator_id) & (Chat.recipient_id == recipient_id)) |
         ((Chat.creator_id == recipient_id) & (Chat.recipient_id == creator_id)),
@@ -48,12 +42,10 @@ def create_private_chat(db: Session, creator_id: int, recipient_id: int) -> Chat
     
     if existing_chat:
         logger.info(f"✅ Found existing chat: {existing_chat.id}")
-        # Ensure both users are members (idempotent fix for previously missing members)
         _ensure_user_membership(db, existing_chat.id, creator_id)
         _ensure_user_membership(db, existing_chat.id, recipient_id)
         return existing_chat
     
-    # Створюємо новий приватний чат
     chat = Chat(
         chat_type=ChatType.PRIVATE,
         creator_id=creator_id,
@@ -64,7 +56,6 @@ def create_private_chat(db: Session, creator_id: int, recipient_id: int) -> Chat
     db.refresh(chat)
     logger.info(f"✅ Chat created: {chat.id}")
     
-    # Додаємо обох користувачів як учасників
     creator_member = ChatMember(
         user_id=creator_id,
         chat_id=chat.id,
@@ -106,7 +97,6 @@ def _ensure_user_membership(db: Session, chat_id: int, user_id: int) -> None:
 
 def get_or_create_private_chat(db: Session, user_id: int, other_user_id: int) -> Chat:
     """Отримання існуючого приватного чату або створення нового"""
-    # Спочатку шукаємо існуючий чат
     existing_chat = db.query(Chat).filter(
         ((Chat.creator_id == user_id) & (Chat.recipient_id == other_user_id)) |
         ((Chat.creator_id == other_user_id) & (Chat.recipient_id == user_id)),
@@ -116,12 +106,10 @@ def get_or_create_private_chat(db: Session, user_id: int, other_user_id: int) ->
     if existing_chat:
         return existing_chat
     
-    # Якщо чат не існує, створюємо новий
     return create_private_chat(db, user_id, other_user_id)
 
 def add_member_to_chat(db: Session, chat_id: int, user_id: int, role: str = "participant") -> ChatMember:
     """Додавання учасника до чату (для приватних чатів зазвичай не потрібно)"""
-    # Перевіряємо, чи користувач вже в чаті
     existing_member = db.query(ChatMember).filter(
         ChatMember.chat_id == chat_id,
         ChatMember.user_id == user_id
@@ -149,14 +137,12 @@ def send_message(db: Session, message_data: dict, author_id: int) -> Message:
     """Відправлення повідомлення"""
     logger.info(f"🔍 Sending message: chat_id={message_data['chat_id']}, author_id={author_id}")
     
-    # Перевіряємо, чи користувач є учасником чату (з авто-додаванням для автора/одержувача приватного чату)
     member = db.query(ChatMember).filter(
         ChatMember.chat_id == message_data["chat_id"],
         ChatMember.user_id == author_id,
         ChatMember.status == MemberStatus.ACTIVE
     ).first()
     if not member:
-        # Перевіряємо імпліцитне членство через creator/recipient і забезпечуємо рядок у chat_members
         chat = db.query(Chat).filter(Chat.id == message_data["chat_id"]).first()
         if chat and (chat.creator_id == author_id or chat.recipient_id == author_id):
             try:
@@ -242,14 +228,12 @@ def delete_message(db: Session, message_id: int, user_id: int) -> bool:
 
 def upload_file(db: Session, file: UploadFile, message_id: int) -> FileAttachment:
     """Завантаження файлу"""
-    # Перевіряємо розмір файлу
     if file.size and file.size > MAX_FILE_SIZE:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="File size exceeds maximum allowed size"
         )
     
-    # Перевіряємо розширення
     file_extension = os.path.splitext(file.filename)[1].lower()
     if file_extension not in ALLOWED_EXTENSIONS:
         raise HTTPException(
@@ -257,16 +241,13 @@ def upload_file(db: Session, file: UploadFile, message_id: int) -> FileAttachmen
             detail="File type not allowed"
         )
     
-    # Генеруємо унікальне ім'я файлу
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     safe_filename = f"{timestamp}_{file.filename}"
     file_path = os.path.join(UPLOAD_DIR, safe_filename)
     
-    # Зберігаємо файл
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
     
-    # Створюємо запис в базі
     attachment = FileAttachment(
         filename=file.filename,
         file_path=file_path,
@@ -292,21 +273,17 @@ def get_chat_messages(db: Session, chat_id: int, skip: int = 0, limit: int = 50)
 def get_user_chats(db: Session, user_id: int) -> List[Chat]:
     """Отримання приватних чатів користувача"""
     logger.info(f"🔍 Getting chats for user {user_id}")
-    # Chats via explicit membership rows
     member_rows = db.query(ChatMember).filter(
         ChatMember.user_id == user_id,
         ChatMember.status == MemberStatus.ACTIVE
     ).all()
     member_chat_ids = {row.chat_id for row in member_rows}
 
-    # Chats where the user is creator or recipient (implicit membership for private chats)
-    # Implicit chats: do not rely on enum equality to avoid legacy enum-label mismatch
     implicit_chats = db.query(Chat).filter(
         (Chat.creator_id == user_id) | (Chat.recipient_id == user_id)
     ).all()
     implicit_chat_ids = {c.id for c in implicit_chats}
 
-    # Ensure membership rows for implicit chats (idempotent backfill for current user)
     for chat in implicit_chats:
         try:
             _ensure_user_membership(db, chat.id, chat.creator_id)
@@ -314,7 +291,6 @@ def get_user_chats(db: Session, user_id: int) -> List[Chat]:
         except Exception as e:
             logger.error(f"⚠️ Failed to ensure membership for chat {chat.id}: {e}")
 
-    # Union of both
     all_chat_ids = list(member_chat_ids | implicit_chat_ids)
     if not all_chat_ids:
         logger.info("🔍 No chats found for user")
@@ -341,7 +317,6 @@ def get_chat_participants(db: Session, chat_id: int) -> List[User]:
 def is_user_in_chat(db: Session, chat_id: int, user_id: int) -> bool:
     """Перевірка, чи користувач є учасником чату"""
     logger.info(f"🔍 Checking if user {user_id} is in chat {chat_id}")
-    # Fast path: explicit membership row exists
     member = db.query(ChatMember).filter(
         ChatMember.chat_id == chat_id,
         ChatMember.user_id == user_id,
@@ -350,9 +325,7 @@ def is_user_in_chat(db: Session, chat_id: int, user_id: int) -> bool:
     if member:
         logger.info("🔍 Member row exists: True")
         return True
-
-    # Fallback for private chats: user is creator or recipient
-    # Avoid enum comparison to tolerate legacy rows
+        
     chat = db.query(Chat).filter(Chat.id == chat_id).first()
     if not chat:
         logger.info("🔍 Chat not found or not private")
@@ -360,7 +333,6 @@ def is_user_in_chat(db: Session, chat_id: int, user_id: int) -> bool:
 
     if chat.creator_id == user_id or chat.recipient_id == user_id:
         logger.info("🔍 Implicit membership via chat creator/recipient: True")
-        # Best-effort: ensure membership row for future queries
         try:
             _ensure_user_membership(db, chat_id, user_id)
         except Exception as e:

@@ -16,13 +16,11 @@ from chat_operations import (
 from datetime import timedelta
 import os
 
-# Створюємо таблиці в базі даних
 from models import Base
 Base.metadata.create_all(bind=engine)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: ensure memberships exist for all chats (idempotent)
     try:
         from database import SessionLocal as _SessionLocal
         from models import Chat as _Chat
@@ -48,7 +46,6 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Додаємо CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
@@ -57,18 +54,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Підключаємо статичні файли
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 security = HTTPBearer()
 
-# Конфігурація JWT
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 @app.post("/register", response_model=UserResponse)
 def register(user: UserCreate, db: Session = Depends(get_db)):
     """Реєстрація нового користувача"""
-    # Перевіряємо, чи користувач вже існує
     db_user = db.query(User).filter(User.email == user.email).first()
     if db_user:
         raise HTTPException(
@@ -83,12 +77,10 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
             detail="Username already taken"
         )
     
-    # Хешуємо пароль
     from passlib.context import CryptContext
     pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
     hashed_password = pwd_context.hash(user.password)
     
-    # Створюємо користувача
     db_user = User(
         username=user.username,
         email=user.email,
